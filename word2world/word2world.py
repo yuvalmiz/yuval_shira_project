@@ -22,8 +22,6 @@ class Word2World:
         if "gpt" in cfg.model: 
             import openai
 
-        else:
-            raise NotImplementedError("Model not implemented yet!")
         
         
 
@@ -33,6 +31,9 @@ class Word2World:
         if "gpt" in cfg.model: 
             from .generators import OpenAIGenerator
             generator = OpenAIGenerator(self.total_input_tokens, self.total_output_tokens)
+        else:
+            from .generators import LlamaGenerator
+            generator = LlamaGenerator(self.total_input_tokens, self.total_output_tokens)
         
         
         story, story_prompt = generator.create_story(cfg.story_paragraphs, cfg.total_objectives)
