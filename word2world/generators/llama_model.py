@@ -36,38 +36,46 @@ import torch
 
 cfg = Config()
 
+model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+
+tokenizer = transformers.AutoTokenizer.from_pretrained(model_id)
+
+model = transformers.pipeline(
+    "text-generation",
+    model=model_id,
+    model_kwargs={"torch_dtype": torch.bfloat16},
+    device_map="auto",
+)
+
+
+
 class LlamaEvaluator(Evaluator):
     def __init__(self, total_input_tokens, total_output_tokens):
         self.model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
         super().__init__(self.model_id, total_input_tokens, total_output_tokens)
-        self.tokenizer = transformers.AutoTokenizer.from_pretrained(self.model_id)
-        self.model = transformers.pipeline(
-            "text-generation",
-            model=self.model_id,
-            model_kwargs={"torch_dtype": torch.bfloat16},
-            device_map="auto",
-        )
 
     def getTokensSize(self, msg):
-        return len(self.tokenizer.encode(msg, add_special_tokens=False))
+        return len(tokenizer.encode(msg, add_special_tokens=False))
 
     
-    def evaluate_world(self, map, tile_map_dictionary, story, model, walkable_tiles, important_tiles, previous_maps):
+    def evaluate_world(self, map, tile_map_dictionary, story, walkable_tiles, important_tiles, previous_maps):
         print(f"Evaluating World...")    
         no_of_exceptios = 0
-        eval_system_prompt = "You are an evaluator of a 2D tilemap world created from a story. You extract meaning from a given story. You are also provided by Python dictionary-like mapping of tiles and characters or alphabets. You evaluate based on how the tiles have been placed and if they match how the story has explained. Your result being 'No' is not a bad thing, but it actually gives a good insight."
-        evaluation_prompt = f"Given the story, tiles used to create the 2D map, and the 2D map, suggest whether the 2D tilemap world is coherent to the story. The story is as follows:\n{story}\nThe tile mapping:{tile_map_dictionary}\nThe 2D tilemap world:\n{map}\n Check for all the tiles mentioned in the tile mapping being in the 2D tilemap world. Strictly return only 'Yes' or 'No' in your answer."
+        eval_system_prompt = "You are an evaluator of a 2D tilemap world created from a story. You extract meaning from a given story. You are also provided by Python dictionary-like mapping of tiles and characters or alphabets. You evaluate based on how the tiles have been placed and if they match how the story has explained. Your result being 'No' is not a bad thing, but it actually gives a good insight. answere only 'Yes' or 'No'"
+        evaluation_prompt = f"Given the story, tiles used to create the 2D map, and the 2D map, suggest whether the 2D tilemap world is coherent to the story. The story is as follows:\n{story}\nThe tile mapping:{tile_map_dictionary}\nThe 2D tilemap world:\n{map}\n Check for all the tiles mentioned in the tile mapping being in the 2D tilemap world. Strictly return only 'Yes' or 'No' in your answer. dont answere anything else dont give me code and dont write sentances! you answere should be only 'Yes' or 'No'"
         done = False
         while not done:
             try:
                 print(f"check#1 done = {done}")
                 
-                world_eval = self.model([
+                world_eval = model([
                                                     {"role": "system", "content": eval_system_prompt},
                                                     {"role": "user", "content": evaluation_prompt}
                                                  ],
                                         max_new_tokens=1000,
                                         temperature = 0.6)[0]["generated_text"][-1]["content"]
+                print("world eval:")
+                print(world_eval)
                 input_message = eval_system_prompt + "\n" + evaluation_prompt
                 input_tokens = self.getTokensSize(input_message)
                 compeltion_tokens = self.getTokensSize(world_eval)
@@ -97,24 +105,17 @@ class LlamaEvaluator(Evaluator):
 
 class LlamaGenerator(Generator):
     def __init__(self, total_input_tokens, total_output_tokens):
-        self.model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-        super().__init__(self.model_id, total_input_tokens, total_output_tokens)
-        self.tokenizer = transformers.AutoTokenizer.from_pretrained(self.model_id)
-        self.model = transformers.pipeline(
-            "text-generation",
-            model=self.model_id,
-            model_kwargs={"torch_dtype": torch.bfloat16},
-            device_map="auto",
-        )
+        self_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+        super().__init__(self_id, total_input_tokens, total_output_tokens)
     
     def getTokensSize(self, msg):
-        return len(self.tokenizer.encode(msg, add_special_tokens=False))
+        return len(tokenizer.encode(msg, add_special_tokens=False))
 
     def create_story(self, story_paragraphs, total_objectives):
         print("Creating story...")
         print(f"Number of story paragraphs:{story_paragraphs}, Objectives of story: {total_objectives}")
         story_prompt = f"Write a {story_paragraphs[0]}-{story_paragraphs[1]} paragraph story which has characters including the protagonist trying to achieve something and the antagonist wanting to stop the protagonist. The story should describe an environment(s) where the story is set up. There should be {total_objectives} objectives for the protagonist in the story. One of them should be to defeat the antagonist somehow."
-        story = self.model([{"role": "user", "content": story_prompt}], max_new_tokens=1000)[0]["generated_text"][-1]["content"]
+        story = model([{"role": "user", "content": story_prompt}], max_new_tokens=1000)[0]["generated_text"][-1]["content"]
         input_tokens = self.getTokensSize(story_prompt)
         self.total_input_tokens.append(input_tokens)
         self.total_output_tokens.append(story)
@@ -128,7 +129,7 @@ class LlamaGenerator(Generator):
         print("Extracting character information...")
         
         character_prompt = "Let's use the above story to create a 2D game. Write a specific description of each character which can be used as a prompt to generate sprites for the characters."
-        character_discriptions = self.model([
+        character_discriptions = model([
                                                                            {"role": "user", "content": story_prompt},
                                                                            {"role": "assistant", "content": story},
                                                                            {"role": "user", "content": character_prompt},
@@ -151,7 +152,7 @@ class LlamaGenerator(Generator):
         }
         The description should only be like this. Do not return in a Python response, and do not return anything else but the answere. make the answere look exactly like the example because we are going to use it with a script
         """
-        character_dict_discriptions = self.model([
+        character_dict_discriptions = model([
                                                             {"role": "user", "content": story_prompt},
                                                             {"role": "assistant", "content": story},
                                                             {"role": "user", "content": character_dict_prompt},
@@ -176,7 +177,7 @@ class LlamaGenerator(Generator):
     def extract_tileset_info(self, story, story_prompt, character_discriptions, character_prompt):
         print("Extracting tileset information...")
         tileset_prompt = "Create an exhaustive list of tiles needed to create the environment."
-        tileset_discriptions = self.model([
+        tileset_discriptions = model([
                                                         {"role": "user", "content": story_prompt},
                                                         {"role": "assistant", "content": story},
                                                         {"role": "user", "content": character_prompt},
@@ -199,7 +200,7 @@ class LlamaGenerator(Generator):
     def map_tiles_to_chars(self, story, story_prompt, character_discriptions, character_prompt, tileset_discriptions, tileset_prompt):
         print("Mapping tiles to characters...")
         tileset_map_prompt = "Imagine each tile maps to an alphabet or a character. For environment use alphabets and for characters use special characters. Create it in a single Python Dictionary style. Return only and only a Python Dictionary and nothing else in your response. Don't return it in a Python response. Names should be the Keys and alphabets or characters should be the Values. Protagonist should always strictly be '@' and the antagonist should always strictly be '#'."
-        tileset_map_discriptions = self.model([
+        tileset_map_discriptions = model([
                                                         {"role": "user", "content": story_prompt},
                                                         {"role": "assistant", "content": story},
                                                         {"role": "user", "content": character_prompt},
@@ -226,7 +227,7 @@ class LlamaGenerator(Generator):
     def extract_goals(self, story, story_prompt, character_discriptions, character_prompt, tileset_discriptions, tileset_prompt, tileset_map_discriptions, tileset_map_prompt):
         print("Extracting goals..")
         goal_prompt = "What is the main goal for protagonist of the story? What are the small goals for protagonist to achieve the main goal of the story? Also create rewards and penalties based on the goals for protagonist. Create a score for each reward or penalty"
-        goal_discriptions = self.model([
+        goal_discriptions = model([
                                                     {"role": "user", "content": story_prompt},
                                                     {"role": "assistant", "content": story},
                                                     {"role": "user", "content": character_prompt},
@@ -254,7 +255,7 @@ class LlamaGenerator(Generator):
     def extract_important_tiles(self, story, story_prompt, character_discriptions, character_prompt, tileset_discriptions, tileset_prompt, tile_map_dict, tileset_map_discriptions, tileset_map_prompt, goal_discriptions, goal_prompt):
         print("Extracting important tiles..")
         important_tile_prompt = f"Considering the above goals that you extracted from the story and the following tileset\n{tile_map_dict}\n create a Python list of the 15 most important characters of the tiles that should be placed in the 2D tilemap world. Remember, Protagonist, antagonist and non-player characters, if there are any, in the story will always be an important tiles. Only return the important tiles. dont write anything else but the list example for answere: ['tile1','tile2','tile3']"
-        important_tile_discriptions = self.model([
+        important_tile_discriptions = model([
                                                             {"role": "user", "content": story_prompt},
                                                             {"role": "assistant", "content": story},
                                                             {"role": "user", "content": character_prompt},
@@ -286,7 +287,7 @@ class LlamaGenerator(Generator):
     def extract_walkable_tiles(self, story, story_prompt, character_discriptions, character_prompt, tileset_discriptions, tileset_prompt, tile_map_dict, tileset_map_discriptions, tileset_map_prompt, goal_discriptions, goal_prompt):
         print("Extracting walkable tiles..")
         walkable_tile_prompt = f"Considering the above goals that you extracted from the story and the following tileset\n{tile_map_dict}\n create a Python list of the walkable tiles in the 2D tilemap world. Only return the walkable tiles in a list form and dont write anything else, in praticular dont write a python code and dont write any other test just give the list as is.\n example of answer: ['tile1', 'tile2', 'tile3']"
-        walkable_tile_discriptions = self.model([
+        walkable_tile_discriptions = model([
                                                             {"role": "user", "content": story_prompt},
                                                             {"role": "assistant", "content": story},
                                                             {"role": "user", "content": character_prompt},
@@ -316,8 +317,8 @@ class LlamaGenerator(Generator):
 
     def extract_interactive_object_tiles(self, story, story_prompt, character_discriptions, character_prompt, tileset_discriptions, tileset_prompt, tile_map_dict, tileset_map_discriptions, tileset_map_prompt, goal_discriptions, goal_prompt):
         print("Extracting walkable tiles..")
-        object_tile_prompt = f"Conseidering the above goals that you extracted from the story and the following tileset\n{tile_map_dict}\n create a Python list of the characters of the object tiles that can be interacted with in the 2D tilemap world. Only return the object tiles that can be interacted with."
-        object_tile_discriptions = self.model([
+        object_tile_prompt = f"Conseidering the above goals that you extracted from the story and the following tileset\n{tile_map_dict}\n create a Python list of the characters of the object tiles that can be interacted with in the 2D tilemap world. Only return the object tiles that can be interacted with. Only return the be interacted with in a list form and dont write anything else, in praticular dont write a python code and dont write any other text just give the list as is.\n example of answer: ['tile1', 'tile2', 'tile3']"
+        object_tile_discriptions = model([
                                                         {"role": "user", "content": story_prompt},
                                                         {"role": "assistant", "content": story},
                                                         {"role": "user", "content": character_prompt},
@@ -369,11 +370,11 @@ class LlamaGenerator(Generator):
             for i in range(len(previous_map)):
                 history = history_intro + f"Story {i}: {previous_story[i]}\nTile Map for story {i}:\n{previous_tile_map[i]}\n, 2D World map for story {i}:\n {previous_map[i]} and evaluation for the 2D World map:\n{previous_eval[i]}. {good_feedback_prompt}\n{bad_feedback_prompt} Create higher quality and with a higher diversity map."
             world_system_prompt = f"You are a 2D game designer that is profficient in designing tile-based maps. Designing any size of the tile-based map is not a problem for you. This is the generation number {round} for you and you will be provided by previous generation results. Improve evaluation scores in each generation. Previous evaluation scores will be provided to you. You are given the goals to achieve and a list of important tiles to place. Additionally you are given 2D tile-maps and stories that were create before for you to make a better map. Consider them to make the world. Do not place the protagonist, the antagonist and the important objects of the story right now. Only create the world right now. Also, consider goals that you extracted earlier and generate while keeping them in context."    
-            world_prompt = f"Using the following tile to character mapping:\n{tile_map_dict}\nCreate an entire world on a tile-based grid. Do not create things that would neew more than one tile. For example, a house or a building needs more than one tile to be made. Also, following characters are important to place:\n{important_tiles_list}\n and walkable tiles:\n{walkable_tiles_list}\n Use {no_of_important_tiles} important tiles to create the world. Do not place the protagonist, the antagonist and the important objects of the story right now. Only create the world right now. Create it is a string format with three backticks to start and end with (```) and not in a list format. {history}"
+            world_prompt = f"Using the following tile to character mapping:\n{tile_map_dict}\nCreate an entire world on a tile-based grid. Do not create things that would need more than one tile. For example, a house or a building needs more than one tile to be made. Also, following characters are important to place:\n{important_tiles_list}\n and walkable tiles:\n{walkable_tiles_list}\n Use {no_of_important_tiles} important tiles to create the world. Do not place the protagonist, the antagonist and the important objects of the story right now. Only create the world right now. Create it is a string format with three backticks to start and end with (```) and not in a list format, dont write anything but the string format in the backticks dont write addition text and dont write code no code also dont explain what you did and why. {history}"
         done = False
         while not done:
             try:
-                world_discriptions = tileset_discriptions = self.model([
+                world_discriptions  = model([
                                                                                         {"role": "user", "content": story_prompt},
                                                                                         {"role": "assistant", "content": story},
                                                                                         {"role": "user", "content": character_prompt},
@@ -413,7 +414,7 @@ class LlamaGenerator(Generator):
 
                 world_with_characters_prompt = f"Now that you have created the following world map:\n{world_map_fixed}\n Place only the protagonist, the antagonist and the interactive objects of the story. Do not change anything in the world, just place only the protagonist, the antagonist and the interactive objects in the world."
 
-                world_with_characters_discriptions = self.model([
+                world_with_characters_discriptions = model([
                                                                                         {"role": "user", "content": story_prompt},
                                                                                         {"role": "assistant", "content": story},
                                                                                         {"role": "user", "content": character_prompt},
@@ -453,13 +454,14 @@ class LlamaGenerator(Generator):
             
                 used_char_dict_with_char = extract_present_elements(world_map_fixed_with_chars, tile_map_dict)
 
-                color_code_prompt = f"Take the following Python dictionary:\n{used_char_dict_with_char}\n and create another dictionary that has Keys as the values of the dictionary above and values as appropriate hexadecimal color codes. For example, grass will have green hexadecimal color code. Stricty return only a Python dictionary. Do not return it in a Python response"
+                color_code_prompt = f"Take the following Python dictionary:\n{used_char_dict_with_char}\n and create another dictionary that has Keys as the values of the dictionary above and values as appropriate hexadecimal color codes. For example, grass will have green hexadecimal color code. Stricty return only a Python dictionary. Do not return it in a Python response and do not return any text other then the dictionary"
 
-                color_code_discriptions = self.model([
+                color_code_discriptions = model([
                                                                                         {"role": "user", "content": color_code_prompt},
                                                                                         ], max_new_tokens=1000,
                                                                                         temperature = 1)[0]["generated_text"][-1]["content"]
-
+                print("color_code_discriptions:\n")
+                print(color_code_discriptions)
                 char_color_map_with_char_dict = extract_dict(color_code_discriptions)
                 char_color_map_with_char = get_image_color_tile_mapping(char_color_map_with_char_dict)
 
@@ -479,7 +481,6 @@ class LlamaGenerator(Generator):
                 world_eval_dict, self.total_input_tokens, self.total_output_tokens = evaluator.evaluate_world(map=world_map_fixed_with_chars,
                                                                                                                 tile_map_dictionary=used_char_dict_with_char,
                                                                                                                 story=story,
-                                                                                                                model=self.model,
                                                                                                                 walkable_tiles=walkable_tiles_list,
                                                                                                                 important_tiles=important_tiles_list,
                                                                                                                 previous_maps=previous_map)
@@ -544,7 +545,7 @@ class LlamaGenerator(Generator):
                 objective_tile_system = "You are a great planner in 2D game. You plan objectives for the protagonist of the game. All objectives should match the goals extracted from the story. Objectives should strictly follow them. Return a Python dictionary of the objective as the key and a tile that achieves the objective and the position of the tile. For example 'Objective': ['A', 6, 1]. Only return a Python dictionary. Do not return a python response."
                 objective_tile_prompt = f"Given the story:\n{story}\n a 2D tile map of a world was created for the story:\n{world_map_fixed_with_chars}\n The tile map was created using the following tile to character mapping:\n{tileset_used_dict}\n You are also provided with the description of the goals:\n{goal_discriptions}\n and walkable tiles:\n{walkable_tiles_list}\n and interactive object tiles:\{object_tiles_list}\n Taking this information into your context, create the objectives to achieve and also provide the tile that you will pick up, reach the position at or hit the enemy. Return a Python dictionary of the objective as the key and a tile that achieves the objective and the position of the tile. The pattearn should be 'Objective': ['tile', row, column], for example 'Objective': ['A', 6, 1], thus the first element would be the tile and second and third elements of the list will be position of the tile. Return strictly in this format."
                 
-                objective_tile_discriptions = self.model([
+                objective_tile_discriptions = model([
                                                                     {"role": "system", "content": objective_tile_system},
                                                                     {"role": "user", "content": objective_tile_prompt}
                                                         ],
@@ -611,23 +612,30 @@ class LlamaGenerator(Generator):
                 removed_value = tileset_used_dict.pop('Antagonist', None) 
                 tileset_used_dict[character_discriptions_dict["Protagonist"]] = "@"
                 tileset_used_dict[character_discriptions_dict["Antagonist"]] = "#"
-                print("Retrieving images.")
+                print("Retrieving images.\n")
                 tile_images,_s= find_most_similar_images(tileset_used_dict,cfg.tile_data_dir)
                 print("Images Retrieved.")
                 tile_images_1st_layer = overlap_dict(tile_images, tileset_used_dict_1st_layer)
-
+                print("after overlap_dict\n")
                 legend = create_legend(tile_images,tileset_used_dict)
+                print("after create legen\n")
                 #plt.imshow(legend)
                 #plt.axis('off')
                 #plt.savefig(save_dir + f'/world_legend_with_chars_{round}.png', format='png', dpi=150, bbox_inches='tight')
                 #plt.show()
                 legend.save(save_dir + f'/world_legend_with_chars_{round}.png', 'PNG')
+                print("after legend save\n")
 
                 env = Word2WorldEnv(walkable_tiles_list, tile_images_1st_layer, tile_images, world_map_fixed, world_map_fixed_with_chars, object_tiles_list, "#")
+                print("after Word2WorldEnv\n")
                 agent = LLMAgent()
+                print("after LLMAgent\n")
                 state = env.reset()
+                print("env.reset\n")
                 env_image = env.render(mode="image")
+                print("after env.render\n")
                 env_image.save(save_dir + f'/world_map_with_chars_{round}.png', 'PNG')
+                print("after env_image.save\n")
 
                 reward_feedback = "This is your first objective"
                 reward_design = {
@@ -639,7 +647,7 @@ class LlamaGenerator(Generator):
                     "You have completed the objective": +100,
                 }
                 protagonist_position = find_character_position(world_map_fixed_with_chars, "@")
-                
+                print("after find_character_position\n")
                 prev_episode_reward = 0
                 done = False
                 
@@ -655,7 +663,7 @@ class LlamaGenerator(Generator):
                         action_system = f"You are a great planner in 2D game. You plan actions for the protagonist of the game to achieve all objects. You are given objectives, tiles and the position of tiles to achieve the objectives. You have the following options as actions: 'move_up', move_down, 'move_right', 'move_left', 'pick_object', 'hit_enemy'. Generate a sequence of actions that will achieve the objective. Only return the sequence of actions from the options."
                         action_prompt = f"Given the story:\n{story}\n a 2D tile map of a world was created for the story:\n{world_map_fixed_with_chars}\n The tile map was created using the following tile to character mapping which has information about all the tiles:\n{tileset_used_dict}\n You are also provided with a set of objectives:\n{objective_tile_dict}\n and walkable tiles:\n{walkable_tiles_list}\n and interactive object tiles:\{object_tiles_list}\n. The character '@' is the protagonist of the story and you are controlling it. The current position of protagonist is {protagonist_position}. The rewards will be given as follows:\n{reward_design}\n{reward_feedback}. Accumulative rewards for all the previous objectives tille now are {reward}. Taking this information into your context, create a sequence of actions for the protagonist to complete the objective: {list(objective_tile_dict.keys())[i]}, which is to reach the tile, 'pick_object' or 'hit_enemy' at tile and position: {list(objective_tile_dict.values())[i]}. Strictly return a Python dictionary with the entry as 'action'. Only return Python dictionary. Do not return it in a Python response."
                         
-                        actions_discriptions = self.model([
+                        actions_discriptions = model([
                                                                     {"role": "system", "content": action_system},
                                                                     {"role": "user", "content": action_prompt}
                                                                    ],
@@ -690,7 +698,7 @@ class LlamaGenerator(Generator):
                         
                         check_prompt = f"Given the previous world state:\n{world_map_fixed_with_chars}\n and the updated state that you returned: \n{current_state}\n is the objective {list(objective_tile_dict.keys())[i]} completed? Remember, from the dictionary of objectives, this objective will be completed when you reach tile {list(objective_tile_dict.values())[0]} at position {list(objective_tile_dict.values())[1]} or you are one tile aound this position in any directions. Strictly, only return 'Complete' or 'Incomplete'."
                         
-                        check_discriptions = self.model([
+                        check_discriptions = model([
                                                                     {"role": "system", "content": action_system},
                                                                     {"role": "user", "content": action_prompt},
                                                                     {"role": "assistant", "content": actions_discriptions},
