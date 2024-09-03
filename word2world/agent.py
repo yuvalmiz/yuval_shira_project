@@ -13,6 +13,7 @@ from .fixers import pad_rows_to_max_length
 from PIL import Image, ImageDraw, ImageFont
 from rembg import remove
 
+#self, walkable_tiles,tiles_without_char,  tiles, str_map_without_chars, str_map, interactive_object_tiles, enemy_tiles
 class Word2WorldEnv(gym.Env):
     def __init__(self, walkable_tiles,tiles_without_char,  tiles, str_map_without_chars, str_map, interactive_object_tiles, enemy_tiles):
         super(Word2WorldEnv, self).__init__()
@@ -144,6 +145,7 @@ class Word2WorldEnv(gym.Env):
         env_img = Image.new('RGBA', (len(self.map[0]) * self.tile_size, len(self.map) * self.tile_size))
         
         # 1st layer
+        print("first player\n")
         for i, row in enumerate(self.map_without_chars):
             for j, tile in enumerate(row):
                 tile_img = self.tiles_without_char[self.default_walkable_tile].resize((self.tile_size, self.tile_size))
@@ -151,12 +153,14 @@ class Word2WorldEnv(gym.Env):
                 env_img.paste(tile_img, (j * self.tile_size, i * self.tile_size), tile_img)
 
         ## 2nd layer
+        print("second player\n")
         for i, row in enumerate(self.map_without_chars):
             for j, tile in enumerate(row):
                 tile_img = self.tiles_without_char[tile].resize((self.tile_size, self.tile_size))
                 # Use the image itself as the mask to handle transparency
                 env_img.paste(tile_img, (j * self.tile_size, i * self.tile_size), tile_img)
         # 3rd layer
+        print("third player\n")
         for i, row in enumerate(self.map):
             for j, tile in enumerate(row):
                 if not tile.isalpha():

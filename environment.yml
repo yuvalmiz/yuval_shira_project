@@ -135,4 +135,4 @@ dependencies:
     - wcwidth==0.2.8
     - werkzeug==3.0.3
     - yarl==1.9.2
-prefix: C:\Users\DELL\anaconda3\envs\word2world
+prefix: /net/projects/ranalab/yuvalm_s/

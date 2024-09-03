@@ -243,4 +243,3 @@ dependencies:
       - sympy==1.12
       - torch==2.2.1
       - triton==2.2.0
-prefix: /opt/conda/envs/word2world

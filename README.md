@@ -21,8 +21,9 @@ cd Word2World
 type > word2world/.env
 conda env create -f environment.yml
 conda activate word2world
+pip install torch=2.2.1 transformers=4.44.2 accelerate
 ```
-
+for using llama login with the huggingface-cli api.
 Add your API key to the .env file created in word2world folder:
 
 ```

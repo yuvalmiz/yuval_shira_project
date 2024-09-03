@@ -35,7 +35,7 @@ class Word2World:
             from .generators import LlamaGenerator
             generator = LlamaGenerator(self.total_input_tokens, self.total_output_tokens)
         
-        
+        is_llama = 'llama' in cfg.model
         story, story_prompt = generator.create_story(cfg.story_paragraphs, cfg.total_objectives)
 
         character_discriptions, character_discriptions_dict, character_prompt, protagonist_name, antagonist_name = generator.extract_character_info(story, story_prompt)
@@ -91,20 +91,20 @@ class Word2World:
 
 
             
-            self.previous_story.append(story['choices'][0]['message']['content'])
             self.previous_tile_map.append(tileset_used_dict)
             self.previous_map.append(world_map_fixed)
             self.previous_eval.append(world_eval_dict)
             self.prev_agent_reward.append(agent_reward)
-
-            self.worlds_history[f"round_{rounds}"] = {"story": story['choices'][0]['message']['content'],
-                                                        "character_information": character_discriptions['choices'][0]['message']['content'],
+            if is_llama:
+                self.previous_story.append(story)
+                self.worlds_history[f"round_{rounds}"] = {"story": story,
+                                                        "character_information": character_discriptions,
                                                         "tile_mapping": tileset_used_dict,
-                                                        "goals": goal_discriptions['choices'][0]['message']['content'],
+                                                        "goals": goal_discriptions,
                                                         "objectives": objectives,
-                                                        "important_tiles": important_tile_discriptions['choices'][0]['message']['content'],
-                                                        "walkable_tiles": walkable_tile_discriptions['choices'][0]['message']['content'],
-                                                        "interactive_object_tiles": object_tile_discriptions['choices'][0]['message']['content'],
+                                                        "important_tiles": important_tile_discriptions,
+                                                        "walkable_tiles": walkable_tile_discriptions,
+                                                        "interactive_object_tiles": object_tile_discriptions,
                                                         "world_1st_layer": {"world":world_map_fixed, "tiles": tileset_used_orig},
                                                         "world": world_map_fixed_with_chars,
                                                         "evaluations": world_eval_dict,
@@ -115,6 +115,26 @@ class Word2World:
                                                             "story_paragraphs": story_paragraphs,
                                                             "total_objectives": total_objectives
                                                         }}
+            else:
+                self.previous_story.append(story['choices'][0]['message']['content'])
+                self.worlds_history[f"round_{rounds}"] = {"story": story['choices'][0]['message']['content'],
+                                                            "character_information": character_discriptions['choices'][0]['message']['content'],
+                                                            "tile_mapping": tileset_used_dict,
+                                                            "goals": goal_discriptions['choices'][0]['message']['content'],
+                                                            "objectives": objectives,
+                                                            "important_tiles": important_tile_discriptions['choices'][0]['message']['content'],
+                                                            "walkable_tiles": walkable_tile_discriptions['choices'][0]['message']['content'],
+                                                            "interactive_object_tiles": object_tile_discriptions['choices'][0]['message']['content'],
+                                                            "world_1st_layer": {"world":world_map_fixed, "tiles": tileset_used_orig},
+                                                            "world": world_map_fixed_with_chars,
+                                                            "evaluations": world_eval_dict,
+                                                            "complexity": {
+                                                                "good_feedback_check": good_feedback_check,
+                                                                "bad_feedback_check": bad_feedback_check, 
+                                                                "no_of_important_tiles": no_of_important_tiles,
+                                                                "story_paragraphs": story_paragraphs,
+                                                                "total_objectives": total_objectives
+                                                            }}
             
             with open(cfg.save_dir +f"/data_gen_{cfg.experiment_name}.json", 'w') as f:
                 json.dump(self.worlds_history, f)
