@@ -137,7 +137,7 @@ class LlamaGenerator(Generator):
         story = model([{"role": "user", "content": story_prompt}], max_new_tokens=1500)[0]["generated_text"][-1]["content"]
         input_tokens = self.getTokensSize(story_prompt)
         self.total_input_tokens.append(input_tokens)
-        self.total_output_tokens.append(story)
+        self.total_output_tokens.append(self.getTokensSize(story))
         print("\n")
         print(story)
         print("\n")
@@ -724,6 +724,7 @@ class LlamaGenerator(Generator):
                             action_dict["action"] = ""
                         print(action_dict["action"])
                         print("\n")
+                        total_actions[list(objective_tile_dict.keys())[i]].append(action_dict["action"])
                         
                         
                         for action_str in action_dict["action"]:
