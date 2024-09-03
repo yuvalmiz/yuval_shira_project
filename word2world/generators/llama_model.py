@@ -720,11 +720,10 @@ class LlamaGenerator(Generator):
                         actions_discriptions = change_answer(actions_discriptions)
                         action_dict = extract_dict(actions_discriptions)
                         print("Action: \n")
-                        if "action" not in action_dict.items():
+                        if "action" not in action_dict.keys():
                             action_dict["action"] = ""
                         print(action_dict["action"])
                         print("\n")
-                        total_actions[list(objective_tile_dict.keys())[i]].append(action_dict["action"])
                         
                         
                         for action_str in action_dict["action"]:
